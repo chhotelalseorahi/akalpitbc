@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Email Verification – Akalpit</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background-color: #F4F6F9;
+      font-family: 'Inter', Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper {
+      max-width: 600px;
+      margin: 40px auto;
+      background-color: #ffffff;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+
+    /* Header */
+    .header {
+      background-color: #1A1F36;
+      padding: 28px 40px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-logo {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+    .header-logo span {
+      color: #6C8EF5;
+    }
+    .header-divider {
+      width: 1px;
+      height: 24px;
+      background: rgba(255,255,255,0.2);
+      margin: 0 12px;
+    }
+    .header-subtitle {
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    /* Body */
+    .body {
+      padding: 44px 40px 36px;
+    }
+    .greeting {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1A1F36;
+      margin-bottom: 12px;
+    }
+    .intro {
+      font-size: 15px;
+      color: #4A5568;
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+
+    /* OTP Box */
+    .otp-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #718096;
+      margin-bottom: 10px;
+    }
+    .otp-box {
+      background: #F7F9FC;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 8px;
+      padding: 22px 32px;
+      display: inline-block;
+      margin-bottom: 28px;
+    }
+    .otp-code {
+      font-size: 38px;
+      font-weight: 700;
+      letter-spacing: 12px;
+      color: #1A1F36;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Expiry notice */
+    .expiry-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 32px;
+    }
+    .expiry-icon {
+      font-size: 16px;
+    }
+    .expiry-text {
+      font-size: 13.5px;
+      color: #92400E;
+    }
+    .expiry-text strong {
+      font-weight: 600;
+    }
+
+    /* Divider */
+    .divider {
+      border: none;
+      border-top: 1px solid #EDF2F7;
+      margin: 0 0 28px;
+    }
+
+    /* Security notice */
+    .security-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #A0AEC0;
+      margin-bottom: 10px;
+    }
+    .security-text {
+      font-size: 13.5px;
+      color: #718096;
+      line-height: 1.7;
+    }
+
+    /* Footer */
+    .footer {
+      background-color: #F7F9FC;
+      border-top: 1px solid #E2E8F0;
+      padding: 20px 40px;
+      text-align: center;
+    }
+    .footer-text {
+      font-size: 12px;
+      color: #A0AEC0;
+      line-height: 1.8;
+    }
+    .footer-text a {
+      color: #6C8EF5;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+
+    <!-- Header -->
+    <div class="header">
+      <div class="header-logo">Pen<span>verse</span></div>
+      <div class="header-divider"></div>
+      <div class="header-subtitle">Email Verification</div>
+    </div>
+
+    <!-- Body -->
+    <div class="body">
+      <div class="greeting">Verify your email address</div>
+      <p class="intro">
+        Thank you for registering with Akalpit. To complete your account setup,
+        please use the one-time password below.
+      </p>
+
+      <div class="otp-label">Your One-Time Password</div>
+      <div class="otp-box">
+        <div class="otp-code">{{OTP}}</div>
+      </div>
+
+      <div class="expiry-row">
+        <span class="expiry-icon">⏱</span>
+        <span class="expiry-text">
+          This code is valid for <strong>10 minutes</strong> and can only be used once.
+        </span>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="security-title">Security Notice</div>
+      <p class="security-text">
+        If you did not create an account with Akalpit, please disregard this email.
+        Never share this OTP with anyone — our team will <strong>never</strong> ask for it.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p class="footer-text">
+        © 2025 Akalpit. All rights reserved.<br/>
+        This is an automated message — please do not reply directly to this email.
+      </p>
+    </div>
+
+  </div>
+</body>
+</html>
