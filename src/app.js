@@ -121,7 +121,7 @@ const PLAY_STORE_URL =
   "https://play.google.com/store/apps/details?id=com.amiable_ventures.akalpit";
 
 function deepLinkPage({ title, description, path }) {
-  const appUrl = `https://akalpit.in${path}`;
+  const appUrl = `https://api.akalpit.in${path}`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -130,7 +130,7 @@ function deepLinkPage({ title, description, path }) {
   <title>${title} – Akalpit</title>
   <meta property="og:title" content="${title}" />
   <meta property="og:description" content="${description}" />
-  <meta property="og:image" content="https://akalpit.in/og-cover.png" />
+  <meta property="og:image" content="https://api.akalpit.in/og-cover.png" />
   <meta property="og:url" content="${appUrl}" />
   <meta property="og:type" content="website" />
   <meta name="twitter:card" content="summary_large_image" />
@@ -157,7 +157,7 @@ function deepLinkPage({ title, description, path }) {
   </style>
 </head>
 <body>
-  <img src="https://akalpit.in/logo.png" alt="Akalpit" class="logo" onerror="this.style.display='none'" />
+  <img src="https://api.akalpit.in/logo.png" alt="Akalpit" class="logo" onerror="this.style.display='none'" />
   <h1>${title}</h1>
   <p>${description}</p>
   <a href="${PLAY_STORE_URL}" class="btn">📲 Get Akalpit</a>
