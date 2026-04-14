@@ -9,37 +9,38 @@ import {
   getMyRegistrations,
   getMyRegistrationsCalendar,
   notifyActivityParticipants,
-  checkContactRequired,
+  submitUTR,
+  updatePaymentStatus,
 } from "../../../controllers/events/Activity/participation.controller.js";
 import { verifyJWT } from "../../../middleware/auth.middleware.js";
 
 const router = express.Router();
 
-/**
- * Base: /api/v1/events/participation
- * Rule: /me/* and static paths MUST come before /:participationId param routes
- */
+// Base: /api/v1/events/participation
 
-// ── Contact check (Flutter calls before showing registration sheet) ──
-router.get("/check-contact",                  verifyJWT, checkContactRequired);          // GET  /participation/check-contact
+// ── My registrations (most specific first) ────────────────
+router.get("/me/calendar",             verifyJWT, getMyRegistrationsCalendar);
+router.get("/me",                      verifyJWT, getMyRegistrations);
+router.get("/my/activity/:activityId", verifyJWT, getMyActivityRegistration);
 
-// ── My registrations (most specific first) ───────────────
-router.get("/me/calendar",                    verifyJWT, getMyRegistrationsCalendar);   // GET  /participation/me/calendar
-router.get("/me",                             verifyJWT, getMyRegistrations);            // GET  /participation/me
-router.get("/my/activity/:activityId",        verifyJWT, getMyActivityRegistration);    // GET  /participation/my/activity/:activityId
+// ── Admin reads ───────────────────────────────────────────
+router.get("/activity/:activityId",    verifyJWT, getParticipantsByActivity);
+router.get("/event/:eventId",          verifyJWT, getParticipantsByEvent);
 
-// ── Admin reads ──────────────────────────────────────────
-router.get("/activity/:activityId",           verifyJWT, getParticipantsByActivity);    // GET  /participation/activity/:activityId?role=
-router.get("/event/:eventId",                 verifyJWT, getParticipantsByEvent);       // GET  /participation/event/:eventId?role=&activityId=
+// ── Register / Cancel ─────────────────────────────────────
+router.post("/register",               verifyJWT, registerForActivity);
+router.delete("/:activityId/cancel",   verifyJWT, cancelRegistration);
 
-// ── Register / Cancel ────────────────────────────────────
-router.post("/register",                      verifyJWT, registerForActivity);           // POST   /participation/register
-router.delete("/:activityId/cancel",          verifyJWT, cancelRegistration);           // DELETE /participation/:activityId/cancel
+// ── UTR submission (participant submits their UPI ref) ────
+router.patch("/:participationId/utr",  verifyJWT, submitUTR);
 
-// ── Admin: notify broadcast ──────────────────────────────
-router.post("/activity/:activityId/notify",   verifyJWT, notifyActivityParticipants);   // POST   /participation/activity/:activityId/notify
+// ── Payment status update (admin marks paid/rejected) ────
+router.patch("/:participationId/payment", verifyJWT, updatePaymentStatus);
 
-// ── Attendance (participationId param — keep last) ───────
-router.patch("/:participationId/attendance",  verifyJWT, markAttendance);               // PATCH  /participation/:participationId/attendance
+// ── Admin: notify broadcast ───────────────────────────────
+router.post("/activity/:activityId/notify", verifyJWT, notifyActivityParticipants);
+
+// ── Attendance (keep last — param route) ─────────────────
+router.patch("/:participationId/attendance", verifyJWT, markAttendance);
 
 export default router;

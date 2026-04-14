@@ -29,6 +29,13 @@ const EventParticipationSchema = new mongoose.Schema(
       trim: true,
     },
 
+    /* ── Contact ── */
+    contactNumber: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+
     /* ── Role ── */
     role: {
       type: String,
@@ -56,6 +63,22 @@ const EventParticipationSchema = new mongoose.Schema(
       index: true,
     },
 
+    /* ── Payment Proof (participant submits after paying) ── */
+    transactionId: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    utrNumber: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    utrSubmittedAt: {
+      type: Date,
+      default: null,
+    },
+
     /* ── Attendance ── */
     attendance: {
       type: String,
@@ -73,35 +96,21 @@ const EventParticipationSchema = new mongoose.Schema(
 );
 
 /* ── Indexes ── */
-
-// One registration per user per activity (hard unique)
 EventParticipationSchema.index(
   { activityId: 1, userId: 1 },
   { unique: true, name: "unique_user_activity" }
 );
-
 EventParticipationSchema.index({ userId: 1, createdAt: -1 }, { name: "user_timeline" });
 EventParticipationSchema.index({ activityId: 1, role: 1 },   { name: "activity_role" });
 EventParticipationSchema.index({ eventId: 1, userId: 1 },    { name: "event_user" });
 
-/* ---------------------------------------------------------------
-   PRE-HOOK
-   Capture isNew BEFORE save (it flips to false after save).
---------------------------------------------------------------- */
-
+/* ── Pre-hook ── */
 EventParticipationSchema.pre("save", function (next) {
   this._wasNewDoc = this.isNew;
   next();
 });
 
-/* ---------------------------------------------------------------
-   POST-HOOK: new registration
-   Increments:
-     Activity.registrationsCount
-     Event.totalRegistrations
-     UserProfile.totalParticipations   ← NEW
---------------------------------------------------------------- */
-
+/* ── Post-hook: new registration ── */
 EventParticipationSchema.post("save", async function (doc) {
   if (!doc._wasNewDoc) return;
 
@@ -114,10 +123,8 @@ EventParticipationSchema.post("save", async function (doc) {
   await Promise.all([
     Activity.findByIdAndUpdate(doc.activityId, { $inc: { registrationsCount: 1 } })
       .catch((e) => console.error("[Participation hook] registrationsCount inc:", e.message)),
-
     Event.findByIdAndUpdate(doc.eventId, { $inc: { totalRegistrations: 1 } })
       .catch((e) => console.error("[Participation hook] totalRegistrations inc:", e.message)),
-
     UserProfile.findOneAndUpdate(
       { userId: doc.userId },
       { $inc: { totalParticipations: 1 } }
@@ -125,12 +132,7 @@ EventParticipationSchema.post("save", async function (doc) {
   ]);
 });
 
-/* ---------------------------------------------------------------
-   POST-HOOK: registration deleted
-   Decrements all three counters with a $gt: 0 guard so they
-   never go negative.
---------------------------------------------------------------- */
-
+/* ── Post-hook: registration deleted ── */
 EventParticipationSchema.post("findOneAndDelete", async function (doc) {
   if (!doc) return;
 
@@ -143,20 +145,14 @@ EventParticipationSchema.post("findOneAndDelete", async function (doc) {
   await Promise.all([
     Activity.findByIdAndUpdate(doc.activityId, { $inc: { registrationsCount: -1 } })
       .catch((e) => console.error("[Participation hook] registrationsCount dec:", e.message)),
-
     Event.findByIdAndUpdate(doc.eventId, { $inc: { totalRegistrations: -1 } })
       .catch((e) => console.error("[Participation hook] totalRegistrations dec:", e.message)),
-
     UserProfile.findOneAndUpdate(
       { userId: doc.userId, totalParticipations: { $gt: 0 } },
       { $inc: { totalParticipations: -1 } }
     ).catch((e) => console.error("[Participation hook] totalParticipations dec:", e.message)),
   ]);
 });
-
-/* ---------------------------------------------------------------
-   EXPORT
---------------------------------------------------------------- */
 
 export const EventParticipation = mongoose.model("EventParticipation", EventParticipationSchema);
 export default EventParticipation;
