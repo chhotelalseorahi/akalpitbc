@@ -108,7 +108,8 @@ app.get("/.well-known/assetlinks.json", (req, res) => {
         namespace: "android_app",
         package_name: "com.amiable_ventures.akalpit",
         sha256_cert_fingerprints: [
-          "4D:6E:79:93:2B:78:E0:8D:B0:DF:D0:99:65:31:C6:81:6B:16:64:66:AA:0B:A5:62:B9:51:AA:CA:34:39:E0:60",
+          // "4D:6E:79:93:2B:78:E0:8D:B0:DF:D0:99:65:31:C6:81:6B:16:64:66:AA:0B:A5:62:B9:51:AA:CA:34:39:E0:60",
+          "B1:E5:B4:B0:D5:DC:D7:8C:DC:0C:03:E2:B9:F1:53:95:78:74:27:DD:DC:DB:80:FF:E0:CA:C9:6E:12:B1:C1:4C",
         ],
       },
     },
