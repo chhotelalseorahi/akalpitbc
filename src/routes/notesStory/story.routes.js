@@ -13,7 +13,7 @@ const router = express.Router();
 
 router.post("/", verifyJWT, createStory);
 
-router.get("/:storyId", verifyJWT, getStoryByStoryId);
+router.get("/:storyId",  getStoryByStoryId);
 
 router.get("/user/:userId", verifyJWT, getStoryByUserId);
 router.get("/club/:clubId", verifyJWT, getStoryByClubId);
