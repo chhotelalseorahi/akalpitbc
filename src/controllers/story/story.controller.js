@@ -94,8 +94,12 @@ export const createStory = async (req, res) => {
 export const getStoryByStoryId = async (req, res) => {
   try {
     const { storyId } = req.params;
- 
-    const story = await Story.findOne({ _id:storyId });
+
+    const story = await Story.findOne({ _id: storyId }).populate(
+      "userId",
+      "displayName imageUrl"  
+    );
+
     if (!story) {
       return res.status(404).json({ message: "Story not found" });
     }
