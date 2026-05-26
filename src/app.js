@@ -122,7 +122,7 @@ const PLAY_STORE_URL =
   "https://play.google.com/store/apps/details?id=com.amiable_ventures.akalpit";
 
 const APP_STORE_URL  = "https://apps.apple.com/app/akalpit/id000000000"; // replace
-const BASE_URL       = "https://link.akalpit.in";
+const BASE_URL       = "https://api.akalpit.in";
 
 function deepLinkPage({ title, description, path, imageUrl }) {
   const appUrl    = `${BASE_URL}${path}`;
