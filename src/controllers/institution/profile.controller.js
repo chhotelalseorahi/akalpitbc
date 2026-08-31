@@ -323,16 +323,17 @@ export const searchInstitutions = asynchandler(async (req, res) => {
   const pageLimit  = Math.min(parseInt(limit, 10), 30);
   const skip       = (pageNumber - 1) * pageLimit;
 
-  const filter = { $text: { $search: q.trim() }, status: "active" };
+  const escaped = q.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const filter = { name: { $regex: `^${escaped}`, $options: "i" }, status: "active" };
   if (categoryId) filter.categoryId = categoryId;
   if (locationId) filter.locationId = locationId;
 
   const [institutions, total] = await Promise.all([
-    Institution.find(filter, { score: { $meta: "textScore" } })
+    Institution.find(filter)
       .select("name logo address about categoryId locationId subscribersCount")
       .populate("categoryId", "name slug icon")
       .populate("locationId", "officeName districtName stateName")
-      .sort({ score: { $meta: "textScore" }, subscribersCount: -1 })
+      .sort({ subscribersCount: -1 })
       .skip(skip)
       .limit(pageLimit)
       .lean(),
