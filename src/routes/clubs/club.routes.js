@@ -17,26 +17,25 @@ import {
   discoverClubs,
   joinClub,
   leaveClub,
-  //   requestToJoinClub,
-  //   acceptJoinRequest,
-  //   rejectJoinRequest,
   promoteToAdmin,
   removeAdmin,
   removeMember,
   changeClubPrivacy,
-  //   changeClubStatus,
   getClubStats,
-  //   getInstitutionClubStats,
- getMyClubs,
-  
+  getMyClubs,
   uploadClubImage,
 } from "../../controllers/clubs/club.controller.js";
 
-import { verifyJWT } from "../../middleware/auth.middleware.js";
 import {
-  isClubAdmin,
-  
-} from "../../middleware/clubs/club.middleware.js";
+  getClubPolicies,
+  addPolicy,
+  updatePolicy,
+  deletePolicy,
+  reorderPolicies,
+} from "../../controllers/clubs/policy.controller.js";
+
+import { verifyJWT } from "../../middleware/auth.middleware.js";
+import { isClubAdmin } from "../../middleware/clubs/club.middleware.js";
 
 const router = express.Router();
 
@@ -52,12 +51,9 @@ router.get("/search", searchClubs);
 
 router.get("/:clubId", getClubByClubId);
 
-
-router.get("/id/:Id",verifyJWT, getClubById);
+router.get("/id/:Id", verifyJWT, getClubById);
 
 router.get("/user/myclub", verifyJWT, getClubByUserId);
-
- 
 
 router.get("/admin/user/:userId/history", getDeletedClubByUserId);
 
@@ -78,5 +74,19 @@ router.get("/:clubId/stats", verifyJWT, getClubStats);
 router.get("/my/clubs", verifyJWT, getMyClubs);
 
 router.post("/:clubId/image", verifyJWT, isClubAdmin, uploadClubImage);
+
+/* =====================================================
+   POLICIES
+===================================================== */
+
+router.get("/:clubId/policies", getClubPolicies);
+
+router.post("/:clubId/policies", verifyJWT, isClubAdmin, addPolicy);
+
+router.patch("/:clubId/policies/:policyId", verifyJWT, isClubAdmin, updatePolicy);
+
+router.delete("/:clubId/policies/:policyId", verifyJWT, isClubAdmin, deletePolicy);
+
+router.patch("/:clubId/policies/reorder", verifyJWT, isClubAdmin, reorderPolicies);
 
 export default router;

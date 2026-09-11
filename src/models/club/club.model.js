@@ -1,5 +1,13 @@
 import mongoose from "mongoose";
 
+const PolicySchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true, trim: true, maxlength: 100 },
+    description: { type: String, required: true, trim: true, maxlength: 2000 },
+  },
+  { timestamps: true }
+);
+
 const ClubSchema = new mongoose.Schema(
   {
     owner: {
@@ -7,7 +15,6 @@ const ClubSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
         required: true,
-        // unique: true is handled by the explicit index at the bottom
       },
       displayName: {
         type: String,
@@ -57,9 +64,23 @@ const ClubSchema = new mongoose.Schema(
     },
 
     membersCount: { type: Number, default: 0 },
-    postsCount:   { type: Number, default: 0 },
-    eventsCount:  { type: Number, default: 0 },
+    postsCount: { type: Number, default: 0 },
+    eventsCount: { type: Number, default: 0 },
     createdBySystem: { type: Boolean, default: false },
+
+    // 💳 UPI ID for donations/payments/dues collection
+    upiId: {
+      type: String,
+      trim: true,
+      default: null,
+      match: /^[\w.-]+@[\w.-]+$/, // basic UPI id format check, e.g. name@bank
+    },
+
+    // 📜 Club policies — Rules, Code of Conduct, Privacy Policy, etc.
+    policies: {
+      type: [PolicySchema],
+      default: [],
+    },
   },
   { timestamps: true }
 );
@@ -68,17 +89,13 @@ const ClubSchema = new mongoose.Schema(
 /* INDEXES                                   */
 /* -------------------------------------------------------------------------- */
 
-// ⚡ 1. DIRECT OWNER INDEX (For instant lookup via JWT)
-// This ensures "owner.id" is indexed directly at the top level
 ClubSchema.index({ "owner.id": 1 }, { unique: true });
 
-// 🔐 2. Case-insensitive uniqueness for clubId
 ClubSchema.index(
   { clubId: 1 },
   { unique: true, collation: { locale: "en", strength: 2 } }
 );
 
-// 🔍 3. Text search
 ClubSchema.index({
   clubName: "text",
   about: "text",
@@ -87,14 +104,12 @@ ClubSchema.index({
   "council.name": "text",
 });
 
-// 📊 4. Compound filters for performance
 ClubSchema.index({ status: 1, privacy: 1 });
 ClubSchema.index({ "council.id": 1, "institution.id": 1 });
 ClubSchema.index({ "institution.id": 1, status: 1 });
 
 export const Club = mongoose.model("Club", ClubSchema);
 
-// Sync indexes to clear old ghost indexes
 Club.syncIndexes().catch((err) => console.error("Index Sync Error:", err));
 
 export default Club;
