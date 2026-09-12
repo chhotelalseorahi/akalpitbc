@@ -6,7 +6,13 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 
 import User from "../../models/Profile/auth.models.js";
 import admin from "../../../config/firebase.js";
-
+const EDITABLE_CLUB_FIELDS = [
+  "clubName",
+  "about",
+  "image",
+  "coverImage",
+  "upiId",
+];
 export const createClub = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
@@ -117,20 +123,27 @@ export const createClub = async (req, res) => {
 
 export const updateClub = async (req, res) => {
   try {
-    const { clubId } = req.params;
-
-    const updated = await Club.findOneAndUpdate(
-      { clubId, status: "active" },
-      req.body,
-      { new: true }
-    );
-
-    if (!updated) {
-      return res.status(404).json({ message: "Club not found" });
+    const updates = {};
+    for (const field of EDITABLE_CLUB_FIELDS) {
+      if (req.body[field] !== undefined) {
+        updates[field] = req.body[field];
+      }
     }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: "No valid fields to update" });
+    }
+
+    // req.club was already loaded by loadClubById in the route chain —
+    // no need to query again, and no risk of the clubId-vs-_id mismatch.
+    Object.assign(req.club, updates);
+    const updated = await req.club.save(); // .save() runs schema validators (e.g. upiId regex)
 
     res.status(200).json({ data: updated });
   } catch (error) {
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: error.message });
+    }
     res.status(500).json({ message: error.message });
   }
 };
