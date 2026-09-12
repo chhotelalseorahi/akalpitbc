@@ -295,7 +295,7 @@ export const getClubByUserId = async (req, res) => {
       "owner.id": userId,
       status: { $ne: "deleted" },
     })
-      .select("clubName image owner") // only required fields
+      .select("clubName image coverImage owner") // only required fields
       .lean();
 
     if (!club) {

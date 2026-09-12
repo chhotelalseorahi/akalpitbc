@@ -39,6 +39,7 @@ const ClubSchema = new mongoose.Schema(
     },
 
     image: { type: String, trim: true, default: null },
+    coverImage: { type: String, trim: true, default: null },
     about: { type: String, trim: true, maxlength: 1000, default: "" },
 
     council: {
