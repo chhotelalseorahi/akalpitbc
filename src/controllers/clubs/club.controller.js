@@ -293,10 +293,14 @@ export const getClubByUserId = async (req, res) => {
     }
 
     // 🔥 Format like getMyClubs (but single object)
+    // NOTE: previously referenced an undefined `DEFAULT_CLUB_IMAGE` here,
+    // which threw a ReferenceError (→ 500) for any club with no image set.
+    // Falls back to null instead — the Flutter side already renders a
+    // placeholder icon when clubImage is null/empty.
     const formattedClub = {
       _id: club._id,
       clubName: club.clubName,
-      clubImage: club.image || DEFAULT_CLUB_IMAGE,
+      clubImage: club.image || null,
       myRole: "owner", // since this API is based on owner.id
     };
 
@@ -420,6 +424,38 @@ export const discoverClubs = async (req, res) => {
 
   const clubs = await Club.find(filter);
   res.status(200).json({ data: clubs });
+};
+
+/**
+ * Returns N random ACTIVE + PUBLIC clubs.
+ * Public route — no auth required. Uses $sample so results are genuinely
+ * randomized at the DB level, not "first N by some sort".
+ */
+export const getRandomClubs = async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 10, 20);
+
+    const clubs = await Club.aggregate([
+      { $match: { status: "active", privacy: "public" } },
+      { $sample: { size: limit } },
+      {
+        $project: {
+          clubId: 1,
+          clubName: 1,
+          image: 1,
+          about: 1,
+          membersCount: 1,
+        },
+      },
+    ]);
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, clubs, "Random clubs fetched successfully"));
+  } catch (error) {
+    console.error("getRandomClubs error:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 };
 
 /* =====================================================
@@ -572,7 +608,10 @@ export const getMyClubs = async (req, res) => {
     .map((m) => ({
       _id: m.clubId._id,
       clubName: m.clubId.clubName,
-      clubImage: m.clubId.image || DEFAULT_CLUB_IMAGE,
+      // NOTE: same undefined `DEFAULT_CLUB_IMAGE` bug as getClubByUserId —
+      // this one just hadn't triggered yet because your memberships list
+      // was empty. Falls back to null, same as above.
+      clubImage: m.clubId.image || null,
       myRole: m.role,
     }));
 
