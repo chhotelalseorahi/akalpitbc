@@ -6,6 +6,13 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 
 import User from "../../models/Profile/auth.models.js";
 import admin from "../../../config/firebase.js";
+
+// ADDED: needed to validate/lookup institution & council when attaching them
+// from the club settings screen. Adjust these import paths if your project
+// structure differs from institution/profile.controller.js's imports.
+import { Institution } from "../../models/Profile/institution.model.js";
+import { Council } from "../../models/club/council.model.js";
+
 const EDITABLE_CLUB_FIELDS = [
   "clubName",
   "about",
@@ -121,12 +128,97 @@ export const createClub = async (req, res) => {
   }
 };
 
+// UPDATED: updateClub now also handles clubId (slug) changes and
+// attaching/detaching institution & council, in addition to the plain
+// EDITABLE_CLUB_FIELDS copy it already did.
+//
+// Request body may include, in addition to the existing editable fields:
+//   clubId:        string            → renames the club's slug (validated for uniqueness)
+//   institutionId: string | null     → attach (valid ObjectId) or detach (null / "")
+//   councilId:     string | null     → attach (valid ObjectId) or detach (null / "")
+//
+// institution/council names are looked up server-side rather than trusted
+// from the client, so the denormalized {id, name} stored on the club can't
+// drift from the source institution/council documents.
 export const updateClub = async (req, res) => {
   try {
     const updates = {};
     for (const field of EDITABLE_CLUB_FIELDS) {
       if (req.body[field] !== undefined) {
         updates[field] = req.body[field];
+      }
+    }
+
+    // ── clubId (slug) change ──────────────────────────────────────────
+    if (req.body.clubId !== undefined) {
+      const newClubId = String(req.body.clubId).trim().toLowerCase();
+
+      if (!newClubId) {
+        return res.status(400).json({ message: "clubId cannot be empty" });
+      }
+      if (!/^[a-z0-9._]+$/.test(newClubId)) {
+        return res.status(400).json({
+          message: "clubId can only contain lowercase letters, numbers, '.' and '_'",
+        });
+      }
+
+      if (newClubId !== req.club.clubId) {
+        const taken = await Club.findOne({
+          clubId: newClubId,
+          _id: { $ne: req.club._id },
+        }).lean();
+        if (taken) {
+          return res
+            .status(409)
+            .json({ message: "This club ID is already taken" });
+        }
+        updates.clubId = newClubId;
+      }
+    }
+
+    // ── Institution attach / detach ────────────────────────────────────
+    if (req.body.institutionId !== undefined) {
+      if (req.body.institutionId === null || req.body.institutionId === "") {
+        updates.institution = null;
+      } else {
+        if (!mongoose.Types.ObjectId.isValid(req.body.institutionId)) {
+          return res.status(400).json({ message: "Invalid institution ID" });
+        }
+        const institution = await Institution.findOne({
+          _id: req.body.institutionId,
+          status: "active",
+        })
+          .select("name")
+          .lean();
+        if (!institution) {
+          return res.status(404).json({ message: "Institution not found" });
+        }
+        updates.institution = { id: institution._id, name: institution.name };
+      }
+    }
+
+    // ── Council attach / detach ─────────────────────────────────────────
+    if (req.body.councilId !== undefined) {
+      if (req.body.councilId === null || req.body.councilId === "") {
+        updates.council = null;
+      } else {
+        if (!mongoose.Types.ObjectId.isValid(req.body.councilId)) {
+          return res.status(400).json({ message: "Invalid council ID" });
+        }
+        // NOTE: field name assumed to be `councilName`, matching the
+        // .select("councilId councilName ...") used in
+        // getInstitutionCouncils (institution/profile.controller.js).
+        // Adjust if your Council schema names this field differently.
+        const council = await Council.findOne({
+          _id: req.body.councilId,
+          status: "active",
+        })
+          .select("councilName")
+          .lean();
+        if (!council) {
+          return res.status(404).json({ message: "Council not found" });
+        }
+        updates.council = { id: council._id, name: council.councilName };
       }
     }
 
@@ -143,6 +235,13 @@ export const updateClub = async (req, res) => {
   } catch (error) {
     if (error.name === "ValidationError") {
       return res.status(400).json({ message: error.message });
+    }
+    // Safety net: the pre-check above should catch clubId collisions, but a
+    // race between two concurrent renames could still hit the unique index.
+    if (error.code === 11000) {
+      return res
+        .status(409)
+        .json({ message: "This club ID is already taken" });
     }
     res.status(500).json({ message: error.message });
   }
