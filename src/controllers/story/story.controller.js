@@ -19,6 +19,53 @@ import "../../models/story/supporterTypes/poetry.model.js";
 import "../../models/story/supporterTypes/mcqs.model.js";
 import "../../models/story/supporterTypes/chatting.model.js";
 
+// ── Link-preview helpers ─────────────────────────────────────────────────
+
+// Bots that generate rich link previews. Expand as needed.
+const CRAWLER_UA_REGEX =
+  /(WhatsApp|facebookexternalhit|Twitterbot|Slackbot|TelegramBot|LinkedInBot|Discordbot|Googlebot|SkypeUriPreview|Pinterest)/i;
+
+const escapeHtml = (str = "") =>
+  String(str).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[c]));
+
+// Pulls a short description out of the first paragraph-type block, if any.
+const extractExcerpt = (story) => {
+  const paragraphBlock = story.blocks?.find((b) => b.type === "paragraph");
+  const text = paragraphBlock?.text || paragraphBlock?.content;
+  if (!text) return "Read this story on Akalpit";
+  return text.length > 150 ? `${text.slice(0, 147)}...` : text;
+};
+
+const renderStoryOgPage = (story) => {
+  const safeTitle = escapeHtml(story.title);
+  const safeDesc = escapeHtml(extractExcerpt(story));
+  const imageUrl = story.image || "";
+  const pageUrl = `https://api.akalpit.in/stories/${story._id}`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${safeTitle}</title>
+  <meta property="og:title" content="${safeTitle}" />
+  <meta property="og:description" content="${safeDesc}" />
+  ${imageUrl ? `<meta property="og:image" content="${escapeHtml(imageUrl)}" />` : ""}
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="${pageUrl}" />
+  <meta name="twitter:card" content="summary_large_image" />
+</head>
+<body></body>
+</html>`;
+};
+
 export const createStory = async (req, res) => {
   try {
     const userId = req.user._id; 
@@ -90,7 +137,6 @@ export const createStory = async (req, res) => {
 };
 
 
- 
 export const getStoryByStoryId = async (req, res) => {
   try {
     const { storyId } = req.params;
@@ -101,15 +147,39 @@ export const getStoryByStoryId = async (req, res) => {
     );
 
     if (!story) {
+      // Bots still need a 200 + fallback tags, or they render nothing.
+      // A 404 for a real browser/app is fine as-is.
       return res.status(404).json({ message: "Story not found" });
     }
 
+    const userAgent = req.headers["user-agent"] || "";
+    const isCrawler = CRAWLER_UA_REGEX.test(userAgent);
+    const wantsHtml = (req.headers.accept || "").includes("text/html");
+
+    // 1. Link-preview bots (WhatsApp, etc.) → OG-tagged HTML page
+    if (isCrawler) {
+      res.set("Content-Type", "text/html");
+      return res.status(200).send(renderStoryOgPage(story));
+    }
+
+    // 2. A real person opening the link in a mobile browser (not the app,
+    //    not a bot) → send them to the store/app instead of raw JSON.
+    //    App/API calls typically request application/json explicitly, so
+    //    this only catches actual browser navigation.
+    if (wantsHtml) {
+      return res.redirect(
+        "https://play.google.com/store/apps/details?id=YOUR_PACKAGE"
+      );
+    }
+
+    // 3. Everything else (the Flutter app fetching story data) → JSON as before
     res.status(200).json({ data: story });
   } catch (error) {
     console.error("Get story error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 export const getStoryByUserId = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -241,6 +311,7 @@ export const updateStory = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 export const getStoryById = async (req, res) => {
   try {
     const { storyId } = req.params;
