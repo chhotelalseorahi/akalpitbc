@@ -1,6 +1,18 @@
 import mongoose from "mongoose";
 const { Schema } = mongoose;
 
+// ── Sponsor sub-schema ─────────────────────────────────────────────────────
+// Used by the event overview page's "Sponsors" section (tappable, opens
+// `website` externally if present).
+const SponsorSchema = new Schema(
+  {
+    name:    { type: String, required: true, trim: true },
+    logo:    { type: String, trim: true, default: null },
+    website: { type: String, trim: true, default: null },
+  },
+  { _id: false }
+);
+
 const EventSchema = new Schema(
   {
     name: {
@@ -48,6 +60,11 @@ const EventSchema = new Schema(
       state:        { type: String, trim: true, default: null },
       country:      { type: String, trim: true, default: "India" },
       mapLink:      { type: String, trim: true, default: null },
+      // FIX: exact pin coordinates — separate from mapLink (a shareable
+      // Google Maps URL). Lets the app show a native map pin / do
+      // distance calculations without needing to parse mapLink.
+      latitude:     { type: Number, default: null },
+      longitude:    { type: Number, default: null },
     },
 
     startDate: {
@@ -57,6 +74,14 @@ const EventSchema = new Schema(
     endDate: {
       type: Date,
       required: true,
+    },
+
+    // FIX: event-level registration deadline, shown on the event card
+    // ("Register by <date>"). Independent of any per-activity deadlines —
+    // this is the overall last date to register for the event itself.
+    registrationDeadline: {
+      type: Date,
+      default: null,
     },
 
     // ── Ownership ─────────────────────────────────────────────────────────────
@@ -84,6 +109,22 @@ const EventSchema = new Schema(
       type: Boolean,
       default: true,
       index: true,
+    },
+
+    // FIX: gallery + sponsors — powers the Overview tab's gallery preview
+    // (first 2 photos inline, "View all" opens the full grid) and the
+    // sponsors section (tappable, opens sponsor.website externally).
+    gallery: {
+      type: [String],
+      default: [],
+    },
+    sponsors: {
+      type: [SponsorSchema],
+      default: [],
+    },
+    tags: {
+      type: [String],
+      default: [],
     },
 
     // ── Denormalized counters (maintained by Activity/Participation hooks) ────

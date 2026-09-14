@@ -13,14 +13,15 @@ const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
    CREATE EVENT
    POST /api/v1/events/create
    Body: name, banner, description, type, genre, location{},
-         locationId, startDate, endDate, clubId, isPublic
+         locationId, startDate, endDate, registrationDeadline,
+         clubId, isPublic
          [institutionId, councilId]
 ══════════════════════════════════════════════════════════ */
 export const createEvent = asynchandler(async (req, res) => {
   const {
     name, banner, description, type, genre,
     location, locationId,
-    startDate, endDate,
+    startDate, endDate, registrationDeadline,
     clubId, institutionId, councilId,
     isPublic,
   } = req.body;
@@ -33,11 +34,19 @@ export const createEvent = asynchandler(async (req, res) => {
     throw new ApiError(400, "startDate cannot be after endDate");
   }
 
+  // FIX: registrationDeadline is optional, but if the caller sends one it
+  // should make sense against the event window — catch it here instead of
+  // letting a bad value silently sit on the card later.
+  if (registrationDeadline && new Date(registrationDeadline) > new Date(endDate)) {
+    throw new ApiError(400, "registrationDeadline cannot be after endDate");
+  }
+
   const event = await Event.create({
     name, banner, description, type, genre,
     location: location || {},
     locationId: locationId || null,
     startDate, endDate,
+    registrationDeadline: registrationDeadline || null,
     clubId,
     isPublic: isPublic ?? true,
     ...(institutionId && { institutionId }),
@@ -72,6 +81,8 @@ export const getEventsByClub = asynchandler(async (req, res) => {
   if (type)             filter.type      = type;
   if (upcoming === "true") filter.startDate = { $gte: new Date() };
 
+  // Full docs (no .select()) — registrationDeadline comes along automatically
+  // and is what powers the month-row cards in the Flutter club events page.
   const events = await Event.find(filter).sort({ startDate: 1 }).lean();
   return res.status(200).json(new ApiResponse(200, { count: events.length, events }, "Fetched successfully"));
 });
@@ -92,7 +103,9 @@ export const getUpcomingClubEvents = asynchandler(async (req, res) => {
     status: "published",
     startDate: { $gte: now, $lte: in30 },
   })
-    .select("name banner type genre location locationId startDate endDate totalActivities totalRegistrations status isPublic")
+    // FIX: registrationDeadline added so this feed's cards can show
+    // "Register by <date>" too, same as the full club-events list.
+    .select("name banner type genre location locationId startDate endDate registrationDeadline totalActivities totalRegistrations status isPublic")
     .sort({ startDate: 1 })
     .lean();
 
@@ -156,6 +169,19 @@ export const updateEvent = asynchandler(async (req, res) => {
   if (updates.startDate && updates.endDate) {
     if (new Date(updates.startDate) > new Date(updates.endDate)) {
       throw new ApiError(400, "startDate cannot be after endDate");
+    }
+  }
+
+  // FIX: validate registrationDeadline against endDate on update too —
+  // covers both "just updates.registrationDeadline" (checked against the
+  // existing endDate) and "both sent together" (checked against the new one).
+  if (updates.registrationDeadline) {
+    const effectiveEndDate = updates.endDate
+      ? new Date(updates.endDate)
+      : (await Event.findById(eventId).select("endDate").lean())?.endDate;
+
+    if (effectiveEndDate && new Date(updates.registrationDeadline) > new Date(effectiveEndDate)) {
+      throw new ApiError(400, "registrationDeadline cannot be after endDate");
     }
   }
 

@@ -7,8 +7,10 @@ import { UserProfile }     from "../../models/Profile/profile.model.js";
 
 const now = () => new Date();
 
+// FIX: registrationDeadline added so every discover feed's cards can show
+// "Register by <date>" — same projection the club events list relies on.
 const EVENT_CARD_SELECT =
-  "name banner type genre location locationId startDate endDate status isPublic clubId totalActivities totalRegistrations";
+  "name banner type genre location locationId startDate endDate registrationDeadline status isPublic clubId totalActivities totalRegistrations";
 
 function parsePage(query) {
   return {
