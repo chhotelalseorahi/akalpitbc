@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
     loginUser,
     logoutUser,
+    googleAuth,
     registerUser,
     refreshAccessToken,
     changeCurrentPassword,
@@ -24,6 +25,7 @@ router.route("/register").post(registerUser);
 router.route("/verifyOtp").post(verifyOtp)
 router.route("/resendOtp").post(resendOtp)
 router.route("/login").post(loginUser)
+router.route("/google").post(googleAuth)
 router.route("/checkusername/:username").get(checkUsernameAvailability)
  
 router.post(

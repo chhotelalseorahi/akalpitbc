@@ -3,10 +3,19 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/Profile/auth.models.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
- 
+
 import jwt from "jsonwebtoken";
+import { OAuth2Client } from "google-auth-library";
 import otpModel from "../models/otp.model.js";
 import { signupOtpEmail } from "../email/sendEmail.js";
+
+// ── Google OAuth client ──────────────────────────────────────────────────────
+// GOOGLE_CLIENT_ID must be the *Web* client ID from Google Cloud Console
+// (the one your Flutter app's google_sign_in serverClientId / Android+iOS
+// client are all associated with) — this is the audience Google signs the
+// ID token for, regardless of which platform the sign-in happened on.
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 const generateAccessAndRefereshTokens = async (userId) => {
   try {
     const user = await User.findById(userId);
@@ -165,7 +174,7 @@ const resendOtp = async (req, res) => {
   return res.status(200).json(new ApiResponse(200, "OTP resent successfully"));
 };
 
- 
+
 export const checkUsernameAvailability = async (req, res) => {
   try {
     const { username } = req.params;
@@ -219,6 +228,8 @@ export const checkUsernameAvailability = async (req, res) => {
   // ---------------- Password Check ----------------
   const isPasswordValid = await authUser.isPasswordCorrect(password);
   if (!isPasswordValid) {
+    // Google-only accounts (no password set) also fail here with the same
+    // generic message — don't leak which accounts are Google-only.
     throw new ApiError(401, "Invalid credentials");
   }
 
@@ -263,6 +274,107 @@ export const checkUsernameAvailability = async (req, res) => {
       )
     );
 });
+
+// ── Google Sign-In ────────────────────────────────────────────────────────────
+// Flutter sends the Google ID token it got from google_sign_in. We verify it
+// with Google directly (never trust a client-supplied email/name), then
+// find-or-create a User by email and issue our own access/refresh tokens —
+// same response shape as loginUser, so the Flutter side reuses one code path.
+const googleAuth = asynchandler(async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    throw new ApiError(400, "Google idToken is required");
+  }
+
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } catch (error) {
+    throw new ApiError(401, "Invalid or expired Google token");
+  }
+
+  const { email, name, picture, sub: googleId, email_verified } = payload || {};
+
+  if (!email || !googleId) {
+    throw new ApiError(400, "Google account did not return an email");
+  }
+  if (email_verified === false) {
+    throw new ApiError(403, "Google email is not verified");
+  }
+
+  let user = await User.findOne({ email });
+
+  if (user) {
+    // Existing account (may have been created via email/password) — link it.
+    if (user.status === "blocked") {
+      throw new ApiError(403, "This account has been blocked");
+    }
+    if (!user.googleId) {
+      user.googleId = googleId;
+      if (!user.imageUrl && picture) user.imageUrl = picture;
+      // Google already verifies the email, so make sure a "pending"
+      // email/password signup isn't left stuck behind OTP verification.
+      if (user.status === "pending") user.status = "registered";
+      await user.save({ validateBeforeSave: false });
+    }
+  } else {
+    // Brand new user — Google verified the email, so skip the OTP step
+    // entirely. isProfileComplete stays false so the app sends them
+    // through the existing CompleteProfileScreen (username/displayName),
+    // exactly like the email/password flow does after OTP verification.
+    user = await User.create({
+      email,
+      googleId,
+      imageUrl: picture || "",
+      status: "registered",
+      isProfileComplete: false,
+      role: "user",
+    });
+  }
+
+  const accessToken = user.generateAccessToken();
+  const refreshToken = user.generateRefreshToken();
+  user.refreshToken = refreshToken;
+  user.lastLoginAt = new Date();
+  await user.save({ validateBeforeSave: false });
+
+  const cookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, cookieOptions)
+    .cookie("refreshToken", refreshToken, cookieOptions)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          user: {
+            _id: user._id,
+            email: user.email,
+            username: user.username,
+            displayName: user.displayName,
+            role: user.role,
+            status: user.status,
+            isProfileComplete: user.isProfileComplete,
+            imageUrl: user.imageUrl,
+          },
+          accessToken,
+          refreshToken,
+        },
+        "Google login successful"
+      )
+    );
+});
+
 // updateFcmToken is now handled by POST /api/v1/notifications/subscribe
 // which stores a single token, triggers recovery, and resubscribes all topics.
 // This stub is kept so existing route imports don't break during migration.
@@ -319,7 +431,7 @@ const completeProfileAfterOtp = async (req, res) => {
 };
 
 
- 
+
 const logoutUser = asynchandler(async (req, res) => {
   const userId = req.user._id;
 
@@ -430,7 +542,7 @@ const getCurrentUser = asynchandler(async (req, res) => {
     .json(new ApiResponse(200, req.user, "User fetched successfully"));
 });
 
- 
+
 
 const updateUserAvatar = asynchandler(async (req, res) => {
   const avatarLocalPath = req.file?.path;
@@ -492,11 +604,12 @@ const updateUserCoverImage = asynchandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Cover image updated successfully"));
 });
 
- 
+
 
 export {
   loginUser,
   logoutUser,
+  googleAuth,
   refreshAccessToken,
   changeCurrentPassword,
   getCurrentUser,

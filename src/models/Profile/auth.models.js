@@ -33,9 +33,23 @@ const userSchema = new Schema(
       default: "",
     },
 
+    // Required for email/password accounts, absent for Google-only accounts.
     password: {
       type: String,
-      required: true,
+      required: function () {
+        return !this.googleId;
+      },
+    },
+
+    // ── OAuth (Google) ───────────────────────────────────────────────────────
+    // Google's stable "sub" claim. Present only for accounts that signed up
+    // or linked via Google Sign-In. sparse+unique so multiple non-Google
+    // users (googleId: undefined) don't collide on the unique index.
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
     },
 
     refreshToken: {
@@ -114,6 +128,8 @@ const userSchema = new Schema(
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
+  // Google-only accounts may have no password at all — nothing to hash.
+  if (!this.password) return next();
   this.password = await bcrypt.hash(this.password, 10);
   next();
 });
@@ -123,6 +139,9 @@ userSchema.pre("save", async function (next) {
 --------------------------------------------------------------- */
 
 userSchema.methods.isPasswordCorrect = async function (password) {
+  // Google-only accounts have no password set — password login must fail,
+  // not throw (bcrypt.compare would throw on a null hash).
+  if (!this.password) return false;
   return bcrypt.compare(password, this.password);
 };
 
