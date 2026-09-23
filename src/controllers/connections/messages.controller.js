@@ -1,5 +1,3 @@
- 
- 
 import { Conversation } from "../../models/connections/conversation.model.js";
 import { Message } from "../../models/connections/messages.model.js";
 import { ApiError } from "../../utils/ApiError.js";
@@ -68,22 +66,32 @@ export const sendMessage = asynchandler(async (req, res) => {
   );
 });
 
-
-
 /* ==========================================
    GET MESSAGES OF A CONVERSATION
 ========================================== */
 export const getMessages = asynchandler(async (req, res) => {
-  const { conversationId } = req.params;
+  const { conversationId } = req.params; // NOTE: this is actually the conversationKey
   const { page = 1, limit = 20 } = req.query;
 
   if (!conversationId) {
     throw new ApiError(400, "conversationId required");
   }
 
+  // Resolve the composite conversationKey into the real Conversation document
+  const conversation = await Conversation.findOne({
+    conversationKey: conversationId,
+  });
+
+  if (!conversation) {
+    // No conversation exists yet for this pair — return an empty list rather than 500
+    return res.status(200).json(
+      new ApiResponse(200, [], "Messages fetched")
+    );
+  }
+
   const skip = (page - 1) * limit;
 
-  const messages = await Message.find({ conversationId })
+  const messages = await Message.find({ conversationId: conversation._id })
     .sort({ sentAt: -1 })
     .skip(skip)
     .limit(Number(limit))
@@ -106,6 +114,7 @@ export const getMessages = asynchandler(async (req, res) => {
     )
   );
 });
+
 export const deleteMessage = asynchandler(async (req, res) => {
   const { messageId } = req.params;
   const userId = req.user._id;
@@ -151,12 +160,22 @@ export const deleteMessage = asynchandler(async (req, res) => {
    MARK AS READ
 ========================================== */
 export const markMessagesAsRead = asynchandler(async (req, res) => {
-  const { conversationId } = req.params;
+  const { conversationId } = req.params; // NOTE: this is actually the conversationKey
   const userId = req.user._id;
+
+  const conversation = await Conversation.findOne({
+    conversationKey: conversationId,
+  });
+
+  if (!conversation) {
+    return res.status(200).json(
+      new ApiResponse(200, null, "Messages marked as read")
+    );
+  }
 
   await Message.updateMany(
     {
-      conversationId,
+      conversationId: conversation._id,
       receiverId: userId,
       isRead: false,
     },
@@ -167,4 +186,3 @@ export const markMessagesAsRead = asynchandler(async (req, res) => {
     new ApiResponse(200, null, "Messages marked as read")
   );
 });
-
