@@ -3,8 +3,10 @@ import {
   createStory,
   getStoryByUserId,
   getStoryByStoryId,
+  getStoryByClubId,
+  getHomeFeed,
   updateStory,
-  patchStory,getStoryByClubId,
+  patchStory,
   deleteStory,
 } from "../../controllers/story/story.controller.js";
 import { verifyJWT } from "../../middleware/auth.middleware.js";
@@ -13,7 +15,11 @@ const router = express.Router();
 
 router.post("/", verifyJWT, createStory);
 
-router.get("/:storyId",  getStoryByStoryId);
+// Declared before "/:storyId" for clarity even though "/feed/home" is a
+// two-segment path and wouldn't actually collide with it.
+router.get("/feed/home", verifyJWT, getHomeFeed);
+
+router.get("/:storyId", getStoryByStoryId);
 
 router.get("/user/:userId", verifyJWT, getStoryByUserId);
 router.get("/club/:clubId", verifyJWT, getStoryByClubId);

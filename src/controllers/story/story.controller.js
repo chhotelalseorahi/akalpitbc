@@ -1,4 +1,5 @@
 import admin from "../../../config/firebase.js";
+import mongoose from "mongoose";
 import BlockBase from "../../models/story/block.model.js";
 import Story from "../../models/story/masterStory.model.js";
 
@@ -289,7 +290,109 @@ export const getStoryByClubId = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
- 
+
+// ── Home feed — mixes stories from the user's clubs/institutions/friends
+// with a slice of pure-random "discovery" stories, interleaved together,
+// so the feed always has fresh content instead of drying up for users who
+// haven't joined much yet, or feeling like "your stuff, then strangers".
+//
+// ⚠️ ASSUMPTIONS — I don't have your User model, so this reads these
+// fields straight off req.user (populated by verifyJWT, same as
+// req.user.displayName is used elsewhere in this file). Rename them to
+// match your actual schema if they differ:
+//   req.user.joinedClubs        → array of Club ObjectIds
+//   req.user.joinedInstitutions → array of Institution ObjectIds
+//   req.user.friends / .following → array of User ObjectIds
+// If institutions post stories through a separate field rather than
+// clubId, add that field to the $or below.
+//
+// Randomness + offset-pagination don't compose for free — each $sample
+// call is independent, so nothing stops the same random story showing up
+// on page 2 that showed on page 1. The fix used here: the client tracks
+// which story _ids it has already rendered this session and sends them
+// back as `excludeIds` (comma-separated) on every subsequent request;
+// the response's meta.nextExcludeIds is exactly that running list, ready
+// to hand back unchanged. No excludeIds sent = start of a fresh session
+// (e.g. pull-to-refresh).
+export const getHomeFeed = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const limit = Math.min(parseInt(req.query.limit) || 15, 50);
+    const excludeIds = (req.query.excludeIds || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => mongoose.isValidObjectId(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    const clubIds = req.user.joinedClubs || [];
+    const institutionIds = req.user.joinedInstitutions || [];
+    const friendIds = req.user.friends || req.user.following || [];
+
+    const personalizedFilter = {
+      _id: { $nin: excludeIds },
+      $or: [
+        { clubId: { $in: [...clubIds, ...institutionIds] } },
+        { userId: { $in: friendIds } },
+      ],
+    };
+
+    // Roughly 60% of the page from clubs/institutions/friends, the rest
+    // random discovery — adjust the split to taste.
+    const personalizedQuota = Math.ceil(limit * 0.6);
+    const discoveryQuota = limit - personalizedQuota;
+
+    const personalized = clubIds.length || institutionIds.length || friendIds.length
+      ? await Story.aggregate([
+          { $match: personalizedFilter },
+          { $sample: { size: personalizedQuota } },
+        ])
+      : [];
+
+    const seenIds = [...excludeIds, ...personalized.map((s) => s._id)];
+
+    const discovery = await Story.aggregate([
+      {
+        $match: {
+          _id: { $nin: seenIds },
+          userId: { $ne: userId }, // don't hand the user their own posts as "discovery"
+        },
+      },
+      // Fill any shortfall from the personalized side (e.g. a brand-new
+      // user with no clubs/friends yet) so the page still comes back full.
+      { $sample: { size: discoveryQuota + (personalizedQuota - personalized.length) } },
+    ]);
+
+    // Interleave 1-for-1 rather than block-then-block.
+    const combined = [];
+    const max = Math.max(personalized.length, discovery.length);
+    for (let i = 0; i < max; i++) {
+      if (personalized[i]) combined.push(personalized[i]);
+      if (discovery[i]) combined.push(discovery[i]);
+    }
+
+    // $sample/aggregate bypass .populate(), so populate after the fact.
+    const populated = await Story.populate(combined, [
+      { path: "userId", select: "username displayName imageUrl" },
+      { path: "clubId", select: "clubName image" },
+    ]);
+
+    res.status(200).json({
+      data: populated,
+      meta: {
+        limit,
+        returned: populated.length,
+        // Hand this straight back as `excludeIds` on the next page request.
+        nextExcludeIds: [...excludeIds, ...populated.map((s) => s._id)].map((id) =>
+          id.toString()
+        ),
+      },
+    });
+  } catch (error) {
+    console.error("Get home feed error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const updateStory = async (req, res) => {
   try {
     const { topicId } = req.params;
